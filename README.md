@@ -28,7 +28,7 @@ graph TD
     B --> E[Unknown / pending]
     C --> F["Bounded retry engine<br/>max 2 attempts, different route"]
     D --> G["Escalate immediately<br/>no auto-retry, needs customer"]
-    E --> H["Agentic reconciliation<br/>checks NPCI, issuing bank, acquiring bank live<br/>Claude/Gemini, max 6 turns"]
+    E --> H["Agentic reconciliation<br/>checks NPCI, issuing bank, acquiring bank live<br/>Claude, max 6 turns"]
     F --> I[Unified Ledger — full audit trail]
     G --> I
     H --> I
