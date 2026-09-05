@@ -1,8 +1,41 @@
 # Revenue Recovery Agent
 
-An agent that detects revenue at risk in Indian payment flows, determines the
-right intervention, and executes a bounded recovery workflow — from payment
-failures to reconciliation and compliant escalation.
+An agent that detects revenue at risk in Indian payment flows, decides the right intervention, and executes a bounded recovery workflow — from payment failures to reconciliation and compliant escalation.
+
+Built for the Razorpay AI Buildathon — **Track 03: AI Revenue Recovery**.
+
+## The problem
+
+Not every payment failure is the same. Some need the customer to fix something (wrong PIN, insufficient balance). Some are transient system hiccups worth one smart retry (bank timeout, network drop). Some mean the money might already be debited, where retrying is dangerous and the only safe move is to actually find out what happened.
+
+Most systems treat all three as "Payment Failed" and stop there — leaving the customer with no real answer about their money, and silently losing revenue that was actually recoverable.
+
+## What this agent does
+
+1. **Classifies** every failed transaction into one of three lanes, based on its decline code.
+2. **Technical declines** (bank timeout, network drop) get a bounded automatic retry through a different route — recovering the payment without any human involved, when possible.
+3. **Business declines** (insufficient balance, wrong PIN) are never auto-retried — they need the customer, so the system tells them clearly what to fix instead of wasting attempts.
+4. **Ambiguous transactions** — where the confirmation never arrived and it's unclear whether the money actually moved — go to a real LLM agent (Claude or Gemini). Instead of guessing, it **checks live with the payment network**: the issuing bank, NPCI, and the acquiring bank, in real time, to find out where the customer's money actually is. If it can recover the payment, it does. If it genuinely can't confirm yet, it's honest about that instead of faking an answer — it tells the customer their payment is under review and it'll follow up once the real settlement report confirms the outcome, rather than leaving them in silence.
+5. Every transaction's full decision path lands in a **unified ledger** with a complete audit trail, and the dashboard shows **measured money recovered across a batch** — recovered, escalated, refunded, or pending confirmation, with nothing lost track of.
+
+## Architecture
+
+```mermaid
+graph TD
+    A[Payment attempt] --> B[Classification engine]
+    B --> C[Technical decline]
+    B --> D[Business decline]
+    B --> E[Unknown / pending]
+    C --> F["Bounded retry engine<br/>max 2 attempts, different route"]
+    D --> G["Escalate immediately<br/>no auto-retry, needs customer"]
+    E --> H["Agentic reconciliation<br/>checks NPCI, issuing bank, acquiring bank live<br/>Claude/Gemini, max 6 turns"]
+    F --> I[Unified Ledger — full audit trail]
+    G --> I
+    H --> I
+    I --> J[Recovery Dashboard — measured money recovered]
+```
+
+**Why only the `unknown/pending` path is agentic:** technical and business decline routing are solved lookups — a bank timeout should always route to bounded retry, a wrong PIN should never be auto-retried, and no reasoning changes that. The ambiguous path genuinely needs judgment (weighing what NPCI, the issuing bank, and the acquiring bank each say, in real time), so that's the piece built as a real tool-using agent instead of a fixed rule. Critically, the agent never pretends to have data it doesn't — a full settlement file is a batch record that doesn't exist yet moments after a transaction, so when live checks are inconclusive, the honest outcome is a fourth ledger state, **pending reconciliation**, with a commitment to update the customer once the real settlement data lands. See `ASSUMPTIONS.md` for the full reasoning and for exactly which numbers in this project are sourced vs. modeled.
 
 ## Quick start
 
@@ -12,109 +45,58 @@ pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 
-Then open `frontend/index.html` (the ops dashboard) or `frontend/checkout.html`
-(the customer-facing demo) directly in a browser. No API key required to run
-— see "Set up the agent" below to enable real LLM reasoning instead of the
-offline fallback.
+Then open `frontend/index.html` (the ops dashboard) or `frontend/checkout.html` (the customer-facing demo) directly in a browser. No API key required — the app runs on a deterministic offline fallback if none is set.
 
-## Problem
+### Enable the real agent (optional but recommended)
 
-Not all payment failures are the same. Some need the customer to fix
-something (wrong PIN). Some are transient system hiccups worth one smart
-retry (bank timeout). Some mean money might already be debited, where
-retrying is dangerous and the only safe move is reconciliation
-(status-check API, then settlement file, then a compliant auto-refund).
-
-Most systems treat all three as "payment failed" and stop there, silently
-losing recoverable revenue.
-
-## How it works
-
-1. **Classification engine** (`classifier.py`) — reads the decline code and
-   routes to one of three buckets: technical decline, business decline, or
-   unknown/pending.
-2. **Retry / reroute engine** (`retry_engine.py`) — only for technical
-   declines. Bounded to 2 attempts, different route each time, then
-   escalates. Never touches business declines.
-3. **Reconciliation agent** (`agentic_recon.py`) — only for unknown/pending.
-   This is a genuinely agentic component: given a Claude API key, it
-   investigates each ambiguous transaction using tools
-   (`check_live_status`, `check_settlement_file`), reasons about whether
-   it has enough evidence, and decides the outcome itself — it is not a
-   fixed script. Bounded by hard rules: max 3 diagnostic tool calls, max
-   6 total turns, and it can only end a transaction by calling one of
-   `finalize_recovered` / `finalize_refunded` / `finalize_escalated`. If
-   `ANTHROPIC_API_KEY` isn't set, a deterministic fallback (same tools,
-   same bounds, no LLM) keeps the pipeline testable offline — this is
-   explicitly logged in the audit trail so it's never mistaken for the
-   real agent.
-4. **Ledger** (`ledger.py`) — every transaction's full decision path and
-   audit trail, queryable per-transaction.
-
-## Set up the agent (optional but recommended for the demo)
-
-Copy `backend/.env.example` to `backend/.env` and fill in one key:
+Copy `backend/.env.example` to `backend/.env` and set one key:
 
 ```bash
-# Option A: Gemini (free tier, no credit card -- get a key at aistudio.google.com/app/apikey)
+# Option A: Gemini (free tier — aistudio.google.com/app/apikey)
 GEMINI_API_KEY=your-key-here
 
-# Option B: Claude (requires a small paid credit balance)
+# Option B: Claude (small paid credit balance — console.anthropic.com)
 ANTHROPIC_API_KEY=your-key-here
 ```
 
-The app loads `.env` automatically on startup -- no need to `export`/`set` it
-in your terminal each time. If GEMINI_API_KEY is set, it's used. Otherwise
-ANTHROPIC_API_KEY is used if present. Without either, the reconciliation
-path runs on the deterministic fallback instead of real LLM reasoning --
-the pipeline still works end-to-end, but the "agentic" part of the demo is
-the fallback logged as such.
-
-## Run it
-
-```bash
-cd backend
-pip install -r requirements.txt
-uvicorn main:app --reload
-```
-
-```bash
-# Generate and process a batch of synthetic transactions
-curl -X POST "http://127.0.0.1:8000/run-batch?n=500&seed=42"
-
-# See the recovered-revenue summary
-curl "http://127.0.0.1:8000/summary"
-
-# See the full audit trail for one transaction
-curl "http://127.0.0.1:8000/transaction/{txn_id}"
-```
-
-## Results (2,000 simulated transactions, seed=42)
-
-At-risk transactions split into two categories that are handled very
-differently, and the metrics reflect that split honestly:
-
-- **Addressable by the agent** (technical declines + unknown/pending) —
-  ₹7.31L. This is the only pool the agent ever intervenes on.
-- **Unrecoverable by design** (business declines: wrong PIN, insufficient
-  balance) — ₹6.44L. The agent never retries these; they require customer
-  action, not a system fix. Reported separately so it's never miscounted
-  as something the agent failed to save.
-
-Within the addressable pool: **74.4% recovered** via retry/reroute +
-reconciliation, with every rupee accounted for (recovered + escalated +
-refunded == addressable amount, nothing silently lost).
-
-See `ASSUMPTIONS.md` for exactly which numbers above are grounded in
-research versus modeled for the simulation — we'd rather be upfront about
-that than have a judge catch it first.
-
+If `GEMINI_API_KEY` is set, it's used. Otherwise `ANTHROPIC_API_KEY` is used if present. Without either, the reconciliation path runs on a clearly-labeled deterministic fallback instead of real LLM reasoning.
 
 ## Stopping rules (bounded recovery)
 
 - Business declines are **never** auto-retried.
 - Technical declines get **max 2** retry attempts, then escalate.
-- Unknown/pending transactions are **never** retried — only reconciled —
-  since the money may already be debited.
-- Every transaction resolves to exactly one of: `recovered`, `escalated`,
-  `refunded`, `pending_recon`. Nothing stays silently unresolved.
+- The reconciliation agent gets **max 6** total turns and **max 3** diagnostic tool calls — it must finalize as one of `recovered`, `refunded`, `pending reconciliation`, or `escalated`, never left silently unresolved.
+- Transactions that can't be confirmed within the compliance window are auto-refunded (RBI TAT-style rule), never left in limbo.
+
+## Latest batch test results
+
+From a live run against the real Claude-powered agent (800 simulated transactions):
+
+| Metric | Value |
+|---|---|
+| Total attempted | ₹60,73,367 |
+| Succeeded on first try | ₹54,02,595 |
+| Addressable by the agent | ₹3,22,365 |
+| **Recovered by the agent** | **₹2,11,004** |
+| **Recovery rate (addressable)** | **65.46%** |
+| Escalated (business decline + retry-exhausted) | ₹4,00,282 |
+| Refunded (compliance TAT) | ₹59,486 |
+| Unrecoverable by design (business declines) | ₹3,48,407 |
+
+"Addressable by the agent" excludes business declines, since the system is deliberately built to never touch those — recovery rate is measured only against transactions the agent is actually designed to act on. See `ASSUMPTIONS.md` for exactly which figures above are grounded in research (NPCI's TD/BD framework, RBI TAT rules) versus modeled for this simulation.
+
+## Project structure
+
+```
+backend/
+  classifier.py       — reads decline code, routes to TD/BD/unknown
+  retry_engine.py      — bounded retry/reroute for technical declines
+  agentic_recon.py     — LLM-driven investigation for ambiguous cases
+  agent_tools.py        — tools the agent uses to check NPCI/issuing/acquiring bank
+  ledger.py             — unified transaction ledger + audit trail
+  generator.py          — synthetic transaction generator for demos/batches
+  main.py                — FastAPI orchestrator, all endpoints
+frontend/
+  index.html            — ops dashboard (batch runs, ledger, audit trail)
+  checkout.html          — customer-facing checkout demo
+```
