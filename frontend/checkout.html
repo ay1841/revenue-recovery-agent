@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Checkout</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #F7F8FA;
+    --ink: #14181F;
+    --ink-soft: #5B6472;
+    --rule: #E2E5EA;
+    --green: #1B7A5B;
+    --green-soft: #E4F1EC;
+    --amber: #C97D24;
+    --amber-soft: #FBEDDD;
+    --slate: #4C6B8A;
+    --slate-soft: #E9EEF3;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'IBM Plex Sans', sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0;
+    padding: 14px 24px; font-size: 12.5px; color: var(--ink-soft);
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--rule); background: var(--paper);
+  }
+  .topbar a { color: var(--ink-soft); text-decoration: none; border-bottom: 1px dotted var(--ink-soft); }
+  .topbar input {
+    font-family: 'IBM Plex Mono', monospace; font-size: 11.5px;
+    border: 1px solid var(--rule); background: white; padding: 4px 7px;
+    border-radius: 3px; width: 170px;
+  }
+
+  .card {
+    width: 100%; max-width: 380px;
+    background: white; border: 1px solid var(--rule); border-radius: 10px;
+    padding: 32px 28px;
+  }
+
+  .store-header { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }
+  .store-icon {
+    width: 34px; height: 34px; border-radius: 8px; background: var(--ink);
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-family: 'Fraunces', serif; font-size: 17px; font-weight: 600;
+  }
+  .store-name { font-family: 'Fraunces', serif; font-weight: 600; font-size: 16px; }
+  .store-sub { font-size: 11.5px; color: var(--ink-soft); }
+
+  .product-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 16px 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+    margin-bottom: 20px;
+  }
+  .product-name { font-size: 14px; }
+  .product-price { font-family: 'IBM Plex Mono', monospace; font-size: 15px; font-weight: 500; }
+
+  .scenario-picker { margin-bottom: 20px; }
+  .scenario-picker label { font-size: 11.5px; color: var(--ink-soft); display: block; margin-bottom: 6px; }
+  .scenario-picker select {
+    width: 100%; font-family: 'IBM Plex Sans', sans-serif; font-size: 13px;
+    border: 1px solid var(--rule); border-radius: 5px; padding: 8px 10px;
+    background: white; color: var(--ink);
+  }
+
+  .pay-btn {
+    width: 100%; padding: 13px; font-family: 'IBM Plex Sans', sans-serif;
+    font-weight: 600; font-size: 14.5px; background: var(--ink); color: white;
+    border: none; border-radius: 6px; cursor: pointer;
+  }
+  .pay-btn:hover { background: #2A303C; }
+  .pay-btn:disabled { background: #C6CAD1; cursor: default; }
+
+  .status-area { margin-top: 20px; min-height: 20px; }
+  .status-line {
+    display: flex; align-items: center; gap: 9px; padding: 8px 0;
+    font-size: 13px; color: var(--ink-soft); opacity: 0;
+    animation: fadeIn 0.35s ease forwards;
+  }
+  @keyframes fadeIn { to { opacity: 1; } }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-soft); flex-shrink: 0; }
+  .spinner {
+    width: 12px; height: 12px; border: 2px solid var(--rule); border-top-color: var(--ink-soft);
+    border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .final-banner {
+    margin-top: 12px; padding: 16px; border-radius: 8px;
+    font-size: 14px; line-height: 1.5; opacity: 0; animation: fadeIn 0.4s ease forwards;
+  }
+  .final-banner.success { background: var(--green-soft); color: var(--green); }
+  .final-banner.action_required { background: var(--amber-soft); color: var(--amber); }
+  .final-banner.refunded, .final-banner.under_review, .final-banner.pending_recon { background: var(--slate-soft); color: var(--slate); }
+
+  .txn-ref { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--ink-soft); margin-top: 14px; }
+  .txn-ref a { color: var(--ink-soft); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span>Customer checkout view -- simulates a real payment failing and recovering</span>
+  <span>
+    API base <input type="text" id="apiBase" value="http://127.0.0.1:8000">
+    &nbsp; <a href="index.html">View internal audit dashboard &rarr;</a>
+  </span>
+</div>
+
+<div class="card">
+  <div class="store-header">
+    <div class="store-icon">R</div>
+    <div>
+      <div class="store-name">Ravello Home Goods</div>
+      <div class="store-sub">Secure checkout</div>
+    </div>
+  </div>
+
+  <div class="product-row">
+    <span class="product-name">Ceramic Table Lamp</span>
+    <span class="product-price" id="productPrice">₹2,499</span>
+  </div>
+
+  <div class="scenario-picker">
+    <label>Demo scenario (for testing/recording)</label>
+    <select id="scenarioSelect">
+      <option value="">Random</option>
+      <option value="technical_decline">Bank timeout → auto-recovered</option>
+      <option value="business_decline">Insufficient balance → needs customer action</option>
+      <option value="unknown_pending">Ambiguous → agent investigates live</option>
+    </select>
+  </div>
+
+  <button class="pay-btn" id="payBtn" onclick="pay()">Pay ₹2,499</button>
+
+  <div class="status-area" id="statusArea"></div>
+</div>
+
+<script>
+function apiBase() { return document.getElementById('apiBase').value.replace(/\/$/, ''); }
+
+function addStatusLine(message, spinner) {
+  const area = document.getElementById('statusArea');
+  const div = document.createElement('div');
+  div.className = 'status-line';
+  div.innerHTML = (spinner ? '<span class="spinner"></span>' : '<span class="dot"></span>') + `<span>${message}</span>`;
+  area.appendChild(div);
+  return div;
+}
+
+function pay() {
+  const btn = document.getElementById('payBtn');
+  const area = document.getElementById('statusArea');
+  const scenario = document.getElementById('scenarioSelect').value;
+
+  btn.disabled = true;
+  btn.textContent = 'Processing...';
+  area.innerHTML = '';
+
+  let url = `${apiBase()}/checkout-demo`;
+  const params = [];
+  if (scenario) params.push(`force_bucket=${scenario}`);
+  if (params.length) url += '?' + params.join('&');
+
+  const es = new EventSource(url);
+  let activeSpinnerLine = null;
+
+  es.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+
+    if (activeSpinnerLine) {
+      activeSpinnerLine.querySelector('.spinner')?.replaceWith(Object.assign(document.createElement('span'), {className: 'dot'}));
+      activeSpinnerLine = null;
+    }
+
+    if (msg.type === 'processing') {
+      activeSpinnerLine = addStatusLine(`Processing payment of ₹${msg.amount.toLocaleString('en-IN')}...`, true);
+    } else if (msg.type === 'declined') {
+      addStatusLine(msg.message);
+    } else if (msg.type === 'retrying') {
+      activeSpinnerLine = addStatusLine(msg.message, true);
+    } else if (msg.type === 'verifying') {
+      activeSpinnerLine = addStatusLine(msg.message, true);
+    } else if (msg.type === 'agent_step') {
+      activeSpinnerLine = addStatusLine(msg.message, true);
+    } else if (msg.type === 'final') {
+      const banner = document.createElement('div');
+      banner.className = `final-banner ${msg.outcome}`;
+      banner.textContent = msg.message;
+      area.appendChild(banner);
+
+      const ref = document.createElement('div');
+      ref.className = 'txn-ref';
+      ref.innerHTML = `Ref: ${msg.txn_id} · <a href="index.html">see full audit trail &rarr;</a>`;
+      area.appendChild(ref);
+
+      es.close();
+      btn.disabled = false;
+      btn.textContent = 'Pay ₹2,499';
+    }
+  };
+
+  es.onerror = () => {
+    es.close();
+    btn.disabled = false;
+    btn.textContent = 'Pay ₹2,499';
+  };
+}
+</script>
+</body>
+</html>

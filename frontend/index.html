@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Revenue Recovery Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #F7F8FA;
+    --ink: #14181F;
+    --ink-soft: #5B6472;
+    --rule: #E2E5EA;
+    --green: #1B7A5B;
+    --green-soft: #E4F1EC;
+    --amber: #C97D24;
+    --amber-soft: #FBEDDD;
+    --slate: #4C6B8A;
+    --slate-soft: #E9EEF3;
+    --grey: #9AA2AD;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'IBM Plex Sans', sans-serif;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  header { margin-bottom: 36px; }
+  header h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 28px;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+  }
+  header p { margin: 0; color: var(--ink-soft); font-size: 14px; }
+
+  .controls {
+    display: flex; gap: 10px; align-items: center;
+    margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--rule);
+    flex-wrap: wrap;
+  }
+  .controls label { font-size: 13px; color: var(--ink-soft); }
+  .controls input {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    border: 1px solid var(--rule);
+    background: white;
+    padding: 6px 8px;
+    border-radius: 3px;
+    width: 90px;
+  }
+  .controls input.wide { width: 220px; }
+  .controls button {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    background: var(--ink);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  .controls button:hover { background: #2A303C; }
+  .controls button:disabled { background: var(--grey); cursor: default; }
+  .controls .status { font-size: 12px; color: var(--ink-soft); font-family: 'IBM Plex Mono', monospace; }
+
+  .hero { margin: 36px 0 28px; }
+  .hero .label { font-size: 13px; color: var(--ink-soft); margin-bottom: 6px; }
+  .hero .amount {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 56px;
+    line-height: 1;
+    color: var(--green);
+    letter-spacing: -0.01em;
+  }
+  .hero .sub { font-size: 13px; color: var(--ink-soft); margin-top: 8px; }
+  .hero .sub b { color: var(--ink); font-weight: 600; }
+
+  .flowbar {
+    display: flex; height: 40px; border-radius: 4px; overflow: hidden;
+    margin: 18px 0 10px; border: 1px solid var(--rule);
+  }
+  .flowbar div { transition: width 0.4s ease; }
+  .flow-succeeded { background: #D8DCE2; }
+  .flow-recovered { background: var(--green); }
+  .flow-escalated { background: var(--amber); }
+  .flow-refunded { background: var(--slate); }
+
+  .legend { display: flex; gap: 22px; flex-wrap: wrap; margin-bottom: 32px; }
+  .legend .item { font-size: 12.5px; color: var(--ink-soft); display: flex; align-items: center; gap: 6px; }
+  .legend .swatch { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+  .legend b { color: var(--ink); font-family: 'IBM Plex Mono', monospace; font-weight: 500; }
+
+  .metrics {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
+    border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+    margin-bottom: 40px;
+  }
+  .metric { padding: 16px 18px; border-right: 1px solid var(--rule); }
+  .metric:last-child { border-right: none; }
+  .metric .k { font-size: 12px; color: var(--ink-soft); margin-bottom: 6px; }
+  .metric .v { font-family: 'IBM Plex Mono', monospace; font-size: 20px; font-weight: 500; }
+
+  .cols { display: grid; grid-template-columns: 1.1fr 1fr; gap: 32px; }
+  @media (max-width: 800px) { .cols { grid-template-columns: 1fr; } }
+
+  .panel h2 {
+    font-family: 'Fraunces', serif; font-weight: 500; font-size: 17px;
+    margin: 0 0 4px;
+  }
+  .panel .panel-sub { font-size: 12.5px; color: var(--ink-soft); margin-bottom: 14px; }
+
+  .tabs { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+  .tabs button {
+    font-family: 'IBM Plex Mono', monospace; font-size: 11.5px;
+    background: none; border: 1px solid var(--rule); color: var(--ink-soft);
+    padding: 5px 10px; border-radius: 3px; cursor: pointer;
+  }
+  .tabs button.active { background: var(--ink); color: white; border-color: var(--ink); }
+
+  .ledger { border-top: 1px solid var(--rule); max-height: 480px; overflow-y: auto; }
+  .row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 4px; border-bottom: 1px solid var(--rule);
+    cursor: pointer; font-size: 12.5px;
+  }
+  .row:hover { background: #EFF1F4; }
+  .row.selected { background: var(--slate-soft); }
+  .row .id { font-family: 'IBM Plex Mono', monospace; color: var(--ink-soft); width: 84px; flex-shrink: 0; }
+  .row .amt { font-family: 'IBM Plex Mono', monospace; width: 90px; flex-shrink: 0; }
+  .row .bucket { color: var(--ink-soft); flex: 1; }
+  .badge {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10.5px;
+    padding: 2px 7px; border-radius: 10px; flex-shrink: 0;
+  }
+  .badge.recovered { background: var(--green-soft); color: var(--green); }
+  .badge.escalated { background: var(--amber-soft); color: var(--amber); }
+  .badge.refunded { background: var(--slate-soft); color: var(--slate); }
+  .badge.pending_recon { background: var(--slate-soft); color: var(--slate); }
+
+  .investigate { border-top: 1px solid var(--rule); padding-top: 4px; min-height: 200px; }
+  .empty-state { color: var(--ink-soft); font-size: 13px; padding: 24px 4px; }
+  .step {
+    display: flex; gap: 10px; padding: 10px 4px; border-bottom: 1px solid var(--rule);
+  }
+  .step .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--grey);
+    margin-top: 6px; flex-shrink: 0;
+  }
+  .step .content { flex: 1; }
+  .step .step-name {
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--ink-soft);
+    text-transform: none; margin-bottom: 3px;
+  }
+  .step .step-detail { font-size: 13px; }
+  .investigate-header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 4px 4px 10px;
+  }
+  .investigate-header .txn-id { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--ink-soft); }
+  .investigate-header .final {
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Revenue Recovery Agent</h1>
+    <p>Detects revenue at risk in payment flows, decides the right intervention, and shows exactly where every rupee went.</p>
+    <p style="margin-top:8px;"><a href="checkout.html" style="color:var(--ink-soft);">&larr; See the customer's checkout view</a></p>
+
+    <div class="controls">
+      <label>API base</label>
+      <input type="text" id="apiBase" class="wide" value="http://127.0.0.1:8000">
+      <label>Batch size</label>
+      <input type="number" id="batchN" value="1000">
+      <label>Seed</label>
+      <input type="number" id="batchSeed" value="42">
+      <button id="runBtn" onclick="runBatch()">Run batch</button>
+      <span class="status" id="statusMsg"></span>
+    </div>
+  </header>
+
+  <section class="hero" id="hero" style="display:none;">
+    <div class="label">Recovered via retry, reroute, and reconciliation</div>
+    <div class="amount" id="heroAmount">₹0</div>
+    <div class="sub" id="heroSub"></div>
+
+    <div class="flowbar">
+      <div class="flow-succeeded" id="flowSucceeded" style="width:0%"></div>
+      <div class="flow-recovered" id="flowRecovered" style="width:0%"></div>
+      <div class="flow-escalated" id="flowEscalated" style="width:0%"></div>
+      <div class="flow-refunded" id="flowRefunded" style="width:0%"></div>
+    </div>
+    <div class="legend">
+      <span class="item"><span class="swatch" style="background:#D8DCE2"></span>Succeeded first try <b id="legSucceeded">₹0</b></span>
+      <span class="item"><span class="swatch" style="background:var(--green)"></span>Recovered by agent <b id="legRecovered">₹0</b></span>
+      <span class="item"><span class="swatch" style="background:var(--amber)"></span>Escalated <b id="legEscalated">₹0</b></span>
+      <span class="item"><span class="swatch" style="background:var(--slate)"></span>Refunded <b id="legRefunded">₹0</b></span>
+    </div>
+  </section>
+
+  <section class="metrics" id="metrics" style="display:none;">
+    <div class="metric"><div class="k">Total attempted</div><div class="v" id="mTotal">—</div></div>
+    <div class="metric"><div class="k">Addressable by agent</div><div class="v" id="mAddressable">—</div></div>
+    <div class="metric"><div class="k">Recovery rate (addressable)</div><div class="v" id="mRate">—</div></div>
+    <div class="metric"><div class="k">Unrecoverable by design</div><div class="v" id="mUnrecoverable">—</div></div>
+  </section>
+
+  <section class="cols" id="cols" style="display:grid;">
+    <div class="panel">
+      <h2>Transaction ledger</h2>
+      <div class="panel-sub">Click a row to see its full decision path.</div>
+      <div class="tabs" id="tabs">
+        <button class="active" data-bucket="">All</button>
+        <button data-bucket="technical_decline">Technical decline</button>
+        <button data-bucket="business_decline">Business decline</button>
+        <button data-bucket="unknown_pending">Unknown / pending</button>
+      </div>
+      <div class="ledger" id="ledgerList"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Decision audit trail</h2>
+      <div class="panel-sub">The agent's full reasoning and tool calls for the selected transaction.</div>
+      <button id="liveBtn" onclick="investigateLive()" style="font-family:'IBM Plex Sans',sans-serif;font-weight:600;font-size:13px;background:var(--green);color:white;border:none;padding:8px 16px;border-radius:3px;cursor:pointer;margin-bottom:14px;">
+        Watch the agent investigate a new transaction
+      </button>
+      <div class="investigate" id="investigate">
+        <div class="empty-state">Select a transaction from the ledger, or click above to watch the agent investigate a fresh ambiguous transaction live.</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+let selectedBucket = "";
+
+function apiBase() { return document.getElementById('apiBase').value.replace(/\/$/, ''); }
+function fmtRupee(n) { return '₹' + Number(n).toLocaleString('en-IN', {maximumFractionDigits: 0}); }
+
+async function runBatch() {
+  const btn = document.getElementById('runBtn');
+  const statusMsg = document.getElementById('statusMsg');
+  const n = document.getElementById('batchN').value;
+  const seed = document.getElementById('batchSeed').value;
+
+  btn.disabled = true;
+  statusMsg.textContent = 'Running batch...';
+
+  try {
+    const res = await fetch(`${apiBase()}/run-batch?n=${n}&seed=${seed}`, { method: 'POST' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const summary = await res.json();
+    renderSummary(summary);
+    await loadLedger();
+    statusMsg.textContent = `Done — ${summary.total_transactions} transactions processed.`;
+  } catch (err) {
+    statusMsg.textContent = `Error: ${err.message}. Check the API base URL and that the server is running.`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderSummary(s) {
+  document.getElementById('hero').style.display = 'block';
+  document.getElementById('metrics').style.display = 'grid';
+  document.getElementById('cols').style.display = 'grid';
+
+  document.getElementById('heroAmount').textContent = fmtRupee(s.amount_recovered);
+  document.getElementById('heroSub').innerHTML =
+    `Out of <b>${fmtRupee(s.amount_addressable_by_agent)}</b> the agent could act on — a <b>${s.recovery_rate_of_addressable}%</b> recovery rate.`;
+
+  const total = s.total_amount_attempted || 1;
+  document.getElementById('flowSucceeded').style.width = (s.amount_succeeded_first_try / total * 100) + '%';
+  document.getElementById('flowRecovered').style.width = (s.amount_recovered / total * 100) + '%';
+  document.getElementById('flowEscalated').style.width = (s.amount_escalated / total * 100) + '%';
+  document.getElementById('flowRefunded').style.width = (s.amount_refunded / total * 100) + '%';
+
+  document.getElementById('legSucceeded').textContent = fmtRupee(s.amount_succeeded_first_try);
+  document.getElementById('legRecovered').textContent = fmtRupee(s.amount_recovered);
+  document.getElementById('legEscalated').textContent = fmtRupee(s.amount_escalated);
+  document.getElementById('legRefunded').textContent = fmtRupee(s.amount_refunded);
+
+  document.getElementById('mTotal').textContent = fmtRupee(s.total_amount_attempted);
+  document.getElementById('mAddressable').textContent = fmtRupee(s.amount_addressable_by_agent);
+  document.getElementById('mRate').textContent = s.recovery_rate_of_addressable + '%';
+  document.getElementById('mUnrecoverable').textContent = fmtRupee(s.amount_unrecoverable_by_design);
+}
+
+async function loadLedger() {
+  const url = `${apiBase()}/transactions?limit=100` + (selectedBucket ? `&bucket=${selectedBucket}` : '');
+  const res = await fetch(url);
+  const rows = await res.json();
+  const list = document.getElementById('ledgerList');
+  list.innerHTML = '';
+
+  if (rows.length === 0) {
+    list.innerHTML = '<div class="empty-state">No transactions in this category.</div>';
+    return;
+  }
+
+  rows.forEach(r => {
+    const div = document.createElement('div');
+    div.className = 'row';
+    div.dataset.txnId = r.txn_id;
+    div.innerHTML = `
+      <span class="id">${r.txn_id.slice(0, 8)}</span>
+      <span class="amt">${fmtRupee(r.amount)}</span>
+      <span class="bucket">${r.bucket.replace('_', ' ')}</span>
+      <span class="badge ${r.final_status}">${r.final_status}</span>
+    `;
+    div.onclick = () => selectTransaction(r.txn_id, div);
+    list.appendChild(div);
+  });
+}
+
+function investigateLive() {
+  document.querySelectorAll('.row').forEach(r => r.classList.remove('selected'));
+  const btn = document.getElementById('liveBtn');
+  const panel = document.getElementById('investigate');
+  btn.disabled = true;
+  btn.textContent = 'Investigating...';
+  panel.innerHTML = '';
+
+  const es = new EventSource(`${apiBase()}/investigate-live`);
+
+  es.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+
+    if (msg.type === 'transaction') {
+      const header = document.createElement('div');
+      header.className = 'investigate-header';
+      header.innerHTML = `
+        <span class="txn-id">${msg.txn_id} · ${fmtRupee(msg.amount)} · ${msg.method}</span>
+        <span class="final badge" id="liveFinalBadge" style="background:#EFF1F4;color:var(--ink-soft);">in progress</span>
+      `;
+      panel.appendChild(header);
+      return;
+    }
+
+    if (msg.type === 'step') {
+      const div = document.createElement('div');
+      div.className = 'step';
+      div.style.opacity = '0';
+      div.innerHTML = `
+        <span class="dot"></span>
+        <div class="content">
+          <div class="step-name">${msg.step}</div>
+          <div class="step-detail">${msg.detail}</div>
+        </div>
+      `;
+      panel.appendChild(div);
+      requestAnimationFrame(() => { div.style.transition = 'opacity 0.3s'; div.style.opacity = '1'; });
+      return;
+    }
+
+    if (msg.type === 'final') {
+      const badge = document.getElementById('liveFinalBadge');
+      if (badge) {
+        badge.textContent = msg.final_status;
+        badge.className = `final badge ${msg.final_status}`;
+      }
+      es.close();
+      btn.disabled = false;
+      btn.textContent = 'Watch the agent investigate a new transaction';
+      loadLedger();
+    }
+  };
+
+  es.onerror = () => {
+    es.close();
+    btn.disabled = false;
+    btn.textContent = 'Watch the agent investigate a new transaction';
+  };
+}
+
+async function selectTransaction(txnId, rowEl) {
+  document.querySelectorAll('.row').forEach(r => r.classList.remove('selected'));
+  rowEl.classList.add('selected');
+
+  const res = await fetch(`${apiBase()}/transaction/${txnId}`);
+  const txn = await res.json();
+
+  const panel = document.getElementById('investigate');
+  const finalClass = txn.final_status;
+  panel.innerHTML = `
+    <div class="investigate-header">
+      <span class="txn-id">${txn.txn_id}</span>
+      <span class="final badge ${finalClass}">${txn.final_status}</span>
+    </div>
+  `;
+
+  txn.audit_trail.forEach(step => {
+    const div = document.createElement('div');
+    div.className = 'step';
+    div.innerHTML = `
+      <span class="dot"></span>
+      <div class="content">
+        <div class="step-name">${step.step}</div>
+        <div class="step-detail">${step.detail}</div>
+      </div>
+    `;
+    panel.appendChild(div);
+  });
+}
+
+document.getElementById('tabs').addEventListener('click', (e) => {
+  if (e.target.tagName !== 'BUTTON') return;
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.remove('active'));
+  e.target.classList.add('active');
+  selectedBucket = e.target.dataset.bucket;
+  loadLedger();
+});
+</script>
+</body>
+</html>
