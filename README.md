@@ -1,22 +1,22 @@
 # Revenue Recovery Agent
 
-An agent that detects revenue at risk in Indian payment flows, decides the right intervention, and executes a bounded recovery workflow — from payment failures to reconciliation and compliant escalation.
+An agent that detects revenue at risk in Indian payment flows, decides the right intervention, and executes a bounded recovery workflow - from payment failures to reconciliation and compliant escalation.
 
-Built for the Razorpay AI Buildathon — **Track 03: AI Revenue Recovery**.
+Built for the Razorpay AI Buildathon **Track 03: AI Revenue Recovery**.
 
 ## The problem
 
-Not every payment failure is the same. Some need the customer to fix something (wrong PIN, insufficient balance). Some are transient system hiccups worth one smart retry (bank timeout, network drop). Some mean the money might already be debited, where retrying is dangerous and the only safe move is to actually find out what happened.
+Not every payment failure is the same. Some need the customer to fix something (wrong PIN, insufficient balance). Some are transient system hiccups worth one smart retry (bank timeout, network drop). Some mean the money might already be debited, where retrying is dangerous, and the only safe move is to actually find out what happened.
 
-Most systems treat all three as "Payment Failed" and stop there — leaving the customer with no real answer about their money, and silently losing revenue that was actually recoverable.
+Most systems treat all three as "Payment Failed" and stop there, leaving the customer with no real answer about their money, and silently losing revenue that was actually recoverable.
 
 ## What this agent does
 
 1. **Classifies** every failed transaction into one of three lanes, based on its decline code.
-2. **Technical declines** (bank timeout, network drop) get a bounded automatic retry through a different route — recovering the payment without any human involved, when possible.
-3. **Business declines** (insufficient balance, wrong PIN) are never auto-retried — they need the customer, so the system tells them clearly what to fix instead of wasting attempts.
-4. **Ambiguous transactions** — where the confirmation never arrived and it's unclear whether the money actually moved — go to a real LLM agent (Claude or Gemini). Instead of guessing, it **checks live with the payment network**: the issuing bank, NPCI, and the acquiring bank, in real time, to find out where the customer's money actually is. If it can recover the payment, it does. If it genuinely can't confirm yet, it's honest about that instead of faking an answer — it tells the customer their payment is under review and it'll follow up once the real settlement report confirms the outcome, rather than leaving them in silence.
-5. Every transaction's full decision path lands in a **unified ledger** with a complete audit trail, and the dashboard shows **measured money recovered across a batch** — recovered, escalated, refunded, or pending confirmation, with nothing lost track of.
+2. **Technical declines** (bank timeout, network drop) get a bounded automatic retry through a different route - recovering the payment without any human involved, when possible.
+3. **Business declines** (insufficient balance, wrong PIN) are never auto-retried - it needs the customer, so the system tells them clearly what to fix instead of wasting attempts.
+4. **Ambiguous transactions** — where the confirmation never arrived, and it's unclear whether the money actually moved - go to a real LLM agent (Claude or Gemini). Instead of guessing, it **checks live with the payment network**: the issuing bank, NPCI, and the acquiring bank, in real time, to find out where the customer's money actually is. If it can recover the payment, it does. If it genuinely can't confirm yet, it's honest about that instead of faking an answer — it tells the customer their payment is under review and it'll follow up once the real settlement report confirms the outcome, rather than leaving them in silence.
+5. Every transaction's full decision path lands in a **unified ledger** with a complete audit trail, and the dashboard shows **measured money recovered across a batch** - recovered, escalated, refunded, or pending confirmation, with nothing lost track of.
 
 ## Architecture
 
@@ -35,7 +35,7 @@ graph TD
     I --> J[Recovery Dashboard — measured money recovered]
 ```
 
-**Why only the `unknown/pending` path is agentic:** technical and business decline routing are solved lookups — a bank timeout should always route to bounded retry, a wrong PIN should never be auto-retried, and no reasoning changes that. The ambiguous path genuinely needs judgment (weighing what NPCI, the issuing bank, and the acquiring bank each say, in real time), so that's the piece built as a real tool-using agent instead of a fixed rule. Critically, the agent never pretends to have data it doesn't — a full settlement file is a batch record that doesn't exist yet moments after a transaction, so when live checks are inconclusive, the honest outcome is a fourth ledger state, **pending reconciliation**, with a commitment to update the customer once the real settlement data lands. See `ASSUMPTIONS.md` for the full reasoning and for exactly which numbers in this project are sourced vs. modeled.
+**Why only the `unknown/pending` path is agentic:** technical and business decline routing are solved lookups - a bank timeout should always route to bounded retry, a wrong PIN should never be auto-retried, and no reasoning changes that. The ambiguous path genuinely needs judgment (weighing what NPCI, the issuing bank, and the acquiring bank each say, in real time), so that's the piece built as a real tool-using agent instead of a fixed rule. Critically, the agent never pretends to have data it doesn't, a full settlement file is a batch record that doesn't exist yet moments after a transaction, so when live checks are inconclusive, the honest outcome is a fourth ledger state, **pending reconciliation**, with a commitment to update the customer once the real settlement data lands. See `ASSUMPTIONS.md` for the full reasoning and for exactly which numbers in this project are sourced vs. modeled.
 
 ## Quick start
 
@@ -52,14 +52,12 @@ Then open `frontend/index.html` (the ops dashboard) or `frontend/checkout.html` 
 Copy `backend/.env.example` to `backend/.env` and set one key:
 
 ```bash
-# Option A: Gemini (free tier — aistudio.google.com/app/apikey)
-GEMINI_API_KEY=your-key-here
 
-# Option B: Claude (small paid credit balance — console.anthropic.com)
+# Claude (small paid credit balance — console.anthropic.com)
 ANTHROPIC_API_KEY=your-key-here
 ```
 
-If `GEMINI_API_KEY` is set, it's used. Otherwise `ANTHROPIC_API_KEY` is used if present. Without either, the reconciliation path runs on a clearly-labeled deterministic fallback instead of real LLM reasoning.
+ `ANTHROPIC_API_KEY` is used if present. Without it, the reconciliation path runs on a clearly labeled deterministic fallback instead of real LLM reasoning.
 
 ## Stopping rules (bounded recovery)
 
